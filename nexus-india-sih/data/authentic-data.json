@@ -1,0 +1,98 @@
+{
+  "source_note": "Public-source prototype data. Individual criminal entities and network relationships are synthetic demo records and must not be presented as real persons.",
+  "humanTrafficking2023": {
+    "indiaCases": 2183,
+    "indiaVictimsReported": 6288,
+    "topStatesByCases": [
+      {
+        "state": "Maharashtra",
+        "cases": 388,
+        "victimsRescued": 955
+      },
+      {
+        "state": "Telangana",
+        "cases": 336,
+        "victimsRescued": 626
+      },
+      {
+        "state": "Odisha",
+        "cases": 162,
+        "victimsRescued": 1305
+      },
+      {
+        "state": "Uttar Pradesh",
+        "cases": 155,
+        "victimsRescued": null
+      },
+      {
+        "state": "Bihar",
+        "cases": 132,
+        "victimsRescued": 510
+      }
+    ],
+    "victimBreakdown": {
+      "male": 2501,
+      "female": 3787,
+      "under18SharePct": 43
+    }
+  },
+  "ahtu2020": {
+    "indiaUnits": 696,
+    "selectedStates": [
+      {
+        "state": "Uttar Pradesh",
+        "units": 75
+      },
+      {
+        "state": "Madhya Pradesh",
+        "units": 51
+      },
+      {
+        "state": "Bihar",
+        "units": 44
+      },
+      {
+        "state": "Rajasthan",
+        "units": 43
+      },
+      {
+        "state": "Tamil Nadu",
+        "units": 43
+      },
+      {
+        "state": "Gujarat",
+        "units": 40
+      },
+      {
+        "state": "West Bengal",
+        "units": 38
+      },
+      {
+        "state": "Maharashtra",
+        "units": 36
+      }
+    ]
+  },
+  "sources": [
+    {
+      "name": "Open Government Data Platform India / NCRB Crime in India 2023",
+      "url": "https://www.data.gov.in/resource/stateut-wise-human-trafficking-cases-indian-penal-code-ipc-during-2023",
+      "use": "2023 state/UT human-trafficking cases"
+    },
+    {
+      "name": "Ministry of Home Affairs \u2014 Anti-Trafficking Cell",
+      "url": "https://www.mha.gov.in/en/commoncontent/anti-trafficking-section",
+      "use": "institutional/legal context and AHTU framework"
+    },
+    {
+      "name": "MHA \u2014 State/UT AHT Units during 2020",
+      "url": "https://www.mha.gov.in/MHA1/Par2017/pdfs/par2022-pdfs/LS-08022022/1093.pdf",
+      "use": "696 AHT units in 2020"
+    },
+    {
+      "name": "NCRB Crime in India 2023 reference PDF",
+      "url": "https://www.ncrb.gov.in/uploads/files/3CrimeinIndia2023PartIII2.pdf",
+      "use": "primary NCRB report referenced by OGD"
+    }
+  ]
+}
