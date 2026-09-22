@@ -1,65 +1,65 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NEXUS India — Criminal Intelligence</title>
+<title>NEXORA — Criminal Analysis System</title>
 <link rel="stylesheet" href="style.css">
 </head><body>
 <div class="shell">
 <aside>
-  <div class="brand"><div class="brandIcon">N</div><div><b>NEXUS</b><small>INDIA CRIMINAL INTELLIGENCE</small></div></div>
+  <div class="brand"><div class="brandIcon">N</div><div><b>NEXORA</b><small>CRIMINAL ANALYSIS SYSTEM</small></div></div>
   <nav>
-    <button class="nav active" data-page="home">⌂ <span>Command Center</span></button>
-    <button class="nav" data-page="sentinel">⚠ <span>Trafficking Sentinel</span><em>07</em></button>
-    <button class="nav" data-page="network">◎ <span>Criminal Network</span></button>
+    <button class="nav active" data-page="home">⌂ <span>Overview</span></button>
+    <button class="nav" data-page="network">◎ <span>Entity Network</span></button>
     <button class="nav" data-page="cases">▣ <span>Cases & Leads</span></button>
+    <button class="nav" data-page="sentinel">⌁ <span>Pattern Analysis</span><em>07</em></button>
     <button class="nav" data-page="ledger">◇ <span>Evidence Ledger</span></button>
-    <button class="nav" data-page="sources">◈ <span>Authentic Sources</span></button>
+    <button class="nav" data-page="sources">◈ <span>Data Sources</span></button>
   </nav>
   <div class="sideBottom"><span>● API ONLINE</span><small>SIH 2026 PROTOTYPE<br>INDIA / INVESTIGATIVE AI</small></div>
 </aside>
 <main>
-<header><div><small>NATIONAL CRIMINAL INTELLIGENCE PLATFORM</small><h1 id="pageTitle">Command Center</h1></div><div class="headRight"><span class="live">● LIVE</span><button id="refresh">↻</button><button class="user">IO · ANALYST</button></div></header>
+<header><div><small>INVESTIGATIVE INTELLIGENCE WORKSPACE</small><h1 id="pageTitle">Overview</h1></div><div class="headRight"><span class="live">● SYSTEM READY</span><button id="refresh" aria-label="Refresh data">↻</button><button class="user">IO · ANALYST</button></div></header>
 
 <section id="home" class="page active">
-  <div class="hero"><div><label>EARLY-WARNING ENGINE</label><h2>Detect the pattern<br><span>before the crime.</span></h2><p>Combine public crime statistics, investigator-entered events and relationship graphs to surface early investigative leads across India.</p><div class="actions"><button class="primary" data-go="sentinel">Launch Sentinel →</button><button data-go="network">Open Network</button></div></div><div class="radar"><i></i><b>THREAT<br>RADAR</b></div></div>
+  <div class="hero"><div><label>AI-ASSISTED INVESTIGATIVE ANALYSIS</label><h2>See how the pieces<br><span>connect.</span></h2><p>Bring cases, entities, locations and relationships into one analytical workspace. Surface patterns and investigative leads that deserve a closer look.</p><div class="actions"><button class="primary" data-go="network">Explore entity network →</button><button data-go="cases">Review cases</button></div></div><div class="radar"><i></i><b>NETWORK<br>SIGNAL</b></div></div>
   <div class="metrics" id="metrics"></div>
   <div class="grid2">
-    <div class="card"><div class="cardHead"><div><label>INDIA / NCRB 2023</label><h3>Human trafficking snapshot</h3></div><span class="tag">AUTHENTIC DATA</span></div><div id="stateBars"></div></div>
-    <div class="card"><div class="cardHead"><div><label>EARLY SIGNALS</label><h3>Pattern queue</h3></div><span class="tag danger">3 REVIEW</span></div><div id="signals"></div></div>
+    <div class="card"><div class="cardHead"><div><label>GEOGRAPHIC DISTRIBUTION</label><h3>Activity by state</h3></div><span class="tag">PUBLIC CONTEXT</span></div><div id="stateBars"></div></div>
+    <div class="card"><div class="cardHead"><div><label>ANALYTICAL QUEUE</label><h3>Patterns to review</h3></div><span class="tag danger">3 REVIEW</span></div><div id="signals"></div></div>
   </div>
-  <div class="notice">⚑ <b>Data boundary:</b> NCRB/MHA figures shown here are authentic public-source statistics. Individual people, vehicles, phones and network links in this prototype are synthetic demo records.</div>
+  <div class="notice">⚑ <b>Analyst boundary:</b> AI output identifies relationships, anomalies and patterns for investigator review. It does not determine guilt or predict future crime.</div>
 </section>
 
 <section id="sentinel" class="page">
-  <div class="sectionHead"><div><label class="dangerText">SPECIALIZED MODEL / HUMAN TRAFFICKING</label><h2>Trafficking Sentinel</h2><p>Scores combinations of investigator-provided signals. It does not label someone as a criminal or victim.</p></div><span class="model">● MODEL ACTIVE · v1</span></div>
-  <div class="alert"><strong>07</strong><div><b>Emerging correlation patterns</b><p>Use the model to prioritize review, not to make autonomous enforcement decisions.</p></div><button id="run">Run analysis</button></div>
+  <div class="sectionHead"><div><label>AI / PATTERN ANALYSIS</label><h2>Investigative signal analysis</h2><p>Combine relationship signals to identify anomalies and cross-case patterns. Specialized crime lenses can be applied without changing the core analysis engine.</p></div><span class="model">● ANALYSIS READY · v1</span></div>
+  <div class="alert"><strong>07</strong><div><b>Emerging patterns in the review queue</b><p>Use analytical signals to prioritize review and gather context before making decisions.</p></div><button id="run">Run analysis</button></div>
   <div class="grid2">
     <div class="card"><label>SIGNAL INPUTS</label><h3>Adjust the evidence pattern</h3><div id="sliders"></div></div>
     <div class="card scoreCard"><label>COMPOSITE LEAD SCORE</label><div id="score">82</div><small>/100</small><h3 id="level">ELEVATED</h3><div class="meter"><i id="meter"></i></div><p id="analysisNotice">Correlation lead only. Human investigator validation required.</p></div>
   </div>
   <div class="grid2">
-    <div class="card"><label>EXAMPLE CORRIDOR</label><h3>Maharashtra → Telangana</h3><p>Illustrative relationship flow using synthetic event records, anchored to authentic state-level statistics.</p><div class="route"><b>Mumbai</b><i>→</i><b>Pune</b><i>→</i><b>Hyderabad</b></div></div>
-    <div class="card"><label>EARLY DETECTION LOGIC</label><h3>Why a signal fires</h3><ul><li>Repeated travel across linked cases</li><li>Rapid recruitment/contact clustering</li><li>Repeated location/vehicle relationships</li><li>Cross-case correlation growth</li></ul></div>
+    <div class="card"><label>SPECIALIZED LENS / HUMAN TRAFFICKING</label><h3>Example relationship corridor</h3><p>One domain lens showing how the shared analysis engine can examine movement and case relationships.</p><div class="route"><b>Mumbai</b><i>→</i><b>Pune</b><i>→</i><b>Hyderabad</b></div></div>
+    <div class="card"><label>ANALYSIS LOGIC</label><h3>Why a signal fires</h3><ul><li>Repeated relationships across linked cases</li><li>Entity clusters forming around a location</li><li>Shared vehicle or communication identifiers</li><li>Unusual growth in cross-case connections</li></ul></div>
   </div>
 </section>
 
 <section id="network" class="page">
-<div class="sectionHead"><div><label>GRAPH ANALYTICS</label><h2>Dynamic Criminal Network</h2><p>Synthetic investigative entities for the prototype. Add, select and trace relationships.</p></div><button class="primary" id="addEntity">＋ Add entity</button></div>
-<div class="network"><div class="graph" id="graph"></div><div class="card inspector"><label>SELECTED ENTITY</label><div class="avatar" id="avatar">P</div><h3 id="entityName">Synthetic Subject A</h3><small id="entityType">PERSON / DEMO</small><div class="risk"><span>Correlation risk</span><b id="risk">87%</b></div><div class="meter"><i id="riskbar"></i></div><p>Linked records <b id="links">8</b></p><button class="primary full" id="trace">Trace connections →</button></div></div>
+<div class="sectionHead"><div><label>GRAPH ANALYTICS</label><h2>Entity network</h2><p>Trace people, cases, vehicles, locations and communication identifiers to understand how records connect.</p></div><button class="primary" id="addEntity">＋ Add entity</button></div>
+<div class="network"><div class="graph" id="graph"></div><div class="card inspector"><label>SELECTED ENTITY</label><div class="avatar" id="avatar">P</div><h3 id="entityName">Subject A</h3><small id="entityType">PERSON</small><div class="risk"><span>Analytical priority</span><b id="risk">87%</b></div><div class="meter"><i id="riskbar"></i></div><p>Linked records <b id="links">8</b></p><button class="primary full" id="trace">Trace connections →</button></div></div>
 </section>
 
 <section id="cases" class="page">
-<div class="sectionHead"><div><label>INVESTIGATIVE WORKSPACE</label><h2>Cases & Leads</h2><p>Demo case records with explicit human-review status.</p></div><button class="primary" id="newCase">＋ New case</button></div>
+<div class="sectionHead"><div><label>INVESTIGATIVE WORKSPACE</label><h2>Cases & leads</h2><p>Review connected cases, priorities and analyst follow-ups in one place.</p></div><button class="primary" id="newCase">＋ New case</button></div>
 <div class="card table"><table><thead><tr><th>ID</th><th>TYPE</th><th>PRIORITY</th><th>LINKS</th><th>UPDATED</th><th>STATUS</th></tr></thead><tbody id="caseRows"></tbody></table></div>
 </section>
 
 <section id="ledger" class="page">
-<div class="sectionHead"><div><label>BLOCKCHAIN-INSPIRED AUDIT LAYER</label><h2>Evidence Ledger</h2><p>Each demo evidence event is chained with SHA-256 hashes to expose tampering.</p></div><button class="primary" id="verify">✓ Verify chain</button></div>
+<div class="sectionHead"><div><label>INTEGRITY & AUDITABILITY</label><h2>Evidence ledger</h2><p>Review the SHA-256 chain that records evidence events and exposes unexpected changes.</p></div><button class="primary" id="verify">✓ Verify chain</button></div>
 <div class="chain" id="chain"></div><div class="blocks" id="blocks"></div>
 </section>
 
 <section id="sources" class="page">
-<div class="sectionHead"><div><label>PROVENANCE</label><h2>Authentic India Sources</h2><p>Every public statistic used by the dashboard is attributed here.</p></div></div>
+<div class="sectionHead"><div><label>PROVENANCE</label><h2>Data sources</h2><p>Review the public references used for geographic and domain context in the workspace.</p></div></div>
 <div class="sourceGrid" id="sourceCards"></div>
 </section>
 
