@@ -13,6 +13,7 @@ CREATE TABLE persons (
 CREATE TABLE cases (
     case_id VARCHAR(20) PRIMARY KEY,
     crime_type VARCHAR(100),
+    case_description TEXT NOT NULL DEFAULT '',
     case_date DATE,
     location VARCHAR(150),
     arrest_status VARCHAR(50)
@@ -124,3 +125,16 @@ INSERT INTO locations (location_id, city, state) VALUES
 ('L005', 'Hyderabad', 'Telangana'), ('L006', 'Kochi', 'Kerala'),
 ('L007', 'Bengaluru', 'Karnataka'), ('L008', 'Delhi', 'Delhi'),
 ('L009', 'Jaipur', 'Rajasthan'), ('L010', 'Ludhiana', 'Punjab');
+
+ALTER TABLE persons ADD COLUMN IF NOT EXISTS entity_type VARCHAR(30) DEFAULT 'person';
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'MEDIUM';
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'OPEN';
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+CREATE TABLE IF NOT EXISTS evidence_blocks (
+    block_index INTEGER PRIMARY KEY,
+    event VARCHAR(150) NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    previous_hash VARCHAR(64) NOT NULL,
+    hash VARCHAR(64) NOT NULL
+);

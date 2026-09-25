@@ -1,21 +1,24 @@
-# NEXUS INDIA — SIH 2026 Working Full-Stack Prototype
+# NEXORA — SIH 2026 Network Analysis Prototype
 
 ## What this is
-A 3–4 person team-sized prototype for a criminal-intelligence platform focused on early human-trafficking pattern detection in India.
+A graph-first investigative analysis prototype for exploring documented links between entities and incident records.
 
-It is deliberately NOT a claim of access to police databases. Public statistics come from official Indian sources; individual/network records are synthetic.
+It does not connect to police databases. Public statistics come from official Indian sources; person, incident, and relationship records in the demo graph are synthetic. Graph patterns are descriptive leads, not evidence of guilt or joint conduct.
 
 ## Features
-- Express REST backend
+- Express REST API backed by PostgreSQL
 - Modern responsive dashboard
-- India NCRB/MHA statistics
-- Human Trafficking Sentinel scoring model
-- Dynamic relationship graph
-- Case/lead workspace
+- India NCRB/MHA aggregate statistics
+- Network graph with entity and incident records
+- Source-referenced entity and relationship intake
+- Explainable shared-incident and connected-component summaries
+- Provenance-bearing node and relationship CSV exports
+- Incident record workspace
 - SHA-256 chained evidence ledger ("blockchain-inspired" audit layer)
 - Source/provenance page
-- Add synthetic entities and demo cases
 - No frontend framework required, so it stays fast
+
+This prototype has no authentication, authorization, or production-grade protection for sensitive personal information. Use synthetic or otherwise non-sensitive data only until access controls, encryption, retention policies, and legal authorization are implemented.
 
 ## Run
 Node.js 20+
@@ -24,6 +27,12 @@ npm install
 npm start
 ```
 Open http://localhost:3000
+
+## Graph data
+The running graph is served from PostgreSQL. Download node and relationship
+records, including relationship types and source references, from
+`/api/network/csv/nodes` and `/api/network/csv/relationships`. Neo4j storage is
+not wired into this prototype yet.
 
 ## Authentic sources used
 1. Open Government Data Platform India / NCRB Crime in India 2023:
@@ -38,16 +47,15 @@ Open http://localhost:3000
 ## Suggested 4-person team split
 1. Frontend + UX: dashboard, graph, responsive UI
 2. Backend: APIs, authentication, data layer
-3. AI/ML: feature engineering, scoring, evaluation, explainability
+3. Graph/ML: feature engineering, evaluation, explainability
 4. Blockchain/data engineering: evidence ledger, provenance, audit trail
 
 ## Next SIH-level upgrades
-- PostgreSQL for cases/evidence
-- Neo4j for graph relationships
-- Python FastAPI model service
+- Neo4j for native graph queries
+- An evaluated graph-analysis or model service
 - Role-based access control + audit logs
-- Real government API/data ingestion where legally and technically available
+- Authorized, provenance-preserving data ingestion where legally and technically available
 - Missing-person/open-case correlation only through authorized datasets
 - Geospatial hotspot layer using public administrative boundaries
-- Model evaluation, false-positive monitoring and human-in-the-loop approval
+- Evaluated graph/ML methods, false-positive monitoring, and human review
 - Encrypt sensitive data and avoid exposing PII in dashboards
