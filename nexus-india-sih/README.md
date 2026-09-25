@@ -3,16 +3,17 @@
 ## What this is
 A graph-first investigative analysis prototype for exploring documented links between entities and incident records.
 
-It does not connect to police databases. Public statistics come from official Indian sources; person, incident, and relationship records in the demo graph are synthetic. Graph patterns are descriptive leads, not evidence of guilt or joint conduct.
+It does not connect to police databases. Public statistics come from official Indian sources; person, incident, and relationship records in the demo graph are synthetic. The current matcher links exact normalized phone, case, and vehicle identifiers; it is deterministic graph logic, not an AI/ML model.
 
 ## Features
 - Express REST API backed by PostgreSQL
 - Modern responsive dashboard
 - India NCRB/MHA aggregate statistics
 - Network graph with entity and incident records
-- Source-referenced entity and relationship intake
-- Explainable shared-incident and connected-component summaries
-- Provenance-bearing node and relationship CSV exports
+- Phone, case, and vehicle identifier intake
+- Automatic exact-identifier matching
+- Focused neighborhood graph with search and full-network view
+- Identifier-match node and relationship CSV exports
 - Incident record workspace
 - SHA-256 chained evidence ledger ("blockchain-inspired" audit layer)
 - Source/provenance page
@@ -30,7 +31,7 @@ Open http://localhost:3000
 
 ## Graph data
 The running graph is served from PostgreSQL. Download node and relationship
-records, including relationship types and source references, from
+records, including relationship types and masked identifier hints, from
 `/api/network/csv/nodes` and `/api/network/csv/relationships`. Neo4j storage is
 not wired into this prototype yet.
 

@@ -131,6 +131,15 @@ ALTER TABLE cases ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'MEDIUM'
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'OPEN';
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
+CREATE TABLE IF NOT EXISTS record_identifiers (
+    identifier_id SERIAL PRIMARY KEY,
+    record_key VARCHAR(30) NOT NULL,
+    identifier_type VARCHAR(20) NOT NULL CHECK (identifier_type IN ('phone', 'case', 'vehicle')),
+    normalized_value VARCHAR(80) NOT NULL,
+    display_value VARCHAR(80) NOT NULL,
+    UNIQUE (record_key, identifier_type, normalized_value)
+);
+
 CREATE TABLE IF NOT EXISTS evidence_blocks (
     block_index INTEGER PRIMARY KEY,
     event VARCHAR(150) NOT NULL,

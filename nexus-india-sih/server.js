@@ -99,6 +99,15 @@ async function ensureDatabase() {
         ALTER TABLE person_cases ADD COLUMN IF NOT EXISTS relationship VARCHAR(100) NOT NULL DEFAULT 'linked to incident';
         ALTER TABLE cases ADD COLUMN IF NOT EXISTS source_reference TEXT NOT NULL DEFAULT 'Legacy demo record';
         ALTER TABLE cases ADD COLUMN IF NOT EXISTS source_url TEXT;
+        CREATE TABLE IF NOT EXISTS record_identifiers (
+            identifier_id SERIAL PRIMARY KEY,
+            record_key VARCHAR(30) NOT NULL,
+            identifier_type VARCHAR(20) NOT NULL CHECK (identifier_type IN ('phone', 'case', 'vehicle')),
+            normalized_value VARCHAR(80) NOT NULL,
+            display_value VARCHAR(80) NOT NULL,
+            UNIQUE (record_key, identifier_type, normalized_value)
+        );
+        CREATE INDEX IF NOT EXISTS record_identifiers_match_idx ON record_identifiers (identifier_type, normalized_value);
         ALTER TABLE cases ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'MEDIUM';
         ALTER TABLE cases ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'OPEN';
         ALTER TABLE cases ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
@@ -131,11 +140,43 @@ async function ensureDatabase() {
     }
 }
 
+function parseIdentifiers(body) {
+    const fields = [
+        { type: "phone", key: "phoneNumber", normalize: value => value.replace(/\D/g, ""), valid: value => /^[+()\-\s\d]+$/.test(value) },
+        { type: "case", key: "caseNumber", normalize: value => value.toUpperCase().replace(/[^A-Z0-9]/g, ""), valid: () => true },
+        { type: "vehicle", key: "vehicleNumber", normalize: value => value.toUpperCase().replace(/[^A-Z0-9]/g, ""), valid: () => true }
+    ];
+    const identifiers = [];
+    for (const field of fields) {
+        const raw = body[field.key];
+        if (raw === undefined || raw === null || raw === "") continue;
+        if (typeof raw !== "string" || raw.length > 80 || !field.valid(raw)) {
+            return { error: `Enter a valid ${field.type} identifier.` };
+        }
+        const displayValue = raw.trim();
+        const normalizedValue = field.normalize(displayValue);
+        if (!normalizedValue || (field.type === "phone" && (normalizedValue.length < 7 || normalizedValue.length > 15))) {
+            return { error: `Enter a valid ${field.type} identifier.` };
+        }
+        identifiers.push({ type: field.type, displayValue, normalizedValue });
+    }
+    return { identifiers };
+}
+
+async function saveIdentifiers(recordKey, identifiers) {
+    for (const identifier of identifiers) {
+        await pool.query(`
+            INSERT INTO record_identifiers (record_key, identifier_type, normalized_value, display_value)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (record_key, identifier_type, normalized_value) DO NOTHING
+        `, [recordKey, identifier.type, identifier.normalizedValue, identifier.displayValue]);
+    }
+}
+
 async function getNetwork() {
-    const [people, incidents, relationships, incidentLinks] = await Promise.all([
+    const [people, incidents, relationships, incidentLinks, identifierLinks] = await Promise.all([
         pool.query(`
         SELECT p.person_id AS id, p.name, COALESCE(p.entity_type, 'person') AS type,
-            p.source_reference AS "sourceReference", p.source_url AS "sourceUrl",
             (SELECT COUNT(*) FROM connections c WHERE c.person_1 = p.person_id OR c.person_2 = p.person_id)
             + (SELECT COUNT(*) FROM person_cases pc WHERE pc.person_id = p.person_id) AS links
         FROM persons p ORDER BY p.person_id
@@ -143,24 +184,45 @@ async function getNetwork() {
         pool.query(`
             SELECT 'I-' || case_id AS id,
                 'Incident ' || case_id || ' · ' || COALESCE(crime_type, 'Unclassified incident') AS name,
-                'incident' AS type, c.source_reference AS "sourceReference", c.source_url AS "sourceUrl",
+                'incident' AS type,
                 (SELECT COUNT(*) FROM person_cases pc WHERE pc.case_id = c.case_id)::int AS links,
                 location, case_date
             FROM cases c ORDER BY case_id
         `),
         pool.query(`
             SELECT person_1 AS source, person_2 AS target, relationship,
-                source_reference AS "sourceReference", source_url AS "sourceUrl", observed_at AS "observedAt"
+                NULL::text AS "identifierHint", observed_at AS "observedAt"
             FROM connections ORDER BY connection_id
         `),
         pool.query(`
             SELECT person_id AS source, 'I-' || case_id AS target, relationship,
-                source_reference AS "sourceReference", source_url AS "sourceUrl", observed_at AS "observedAt"
+                NULL::text AS "identifierHint", observed_at AS "observedAt"
             FROM person_cases ORDER BY case_id, person_id
+        `),
+        pool.query(`
+            SELECT first.record_key AS source, second.record_key AS target,
+                CASE first.identifier_type
+                    WHEN 'phone' THEN 'shared phone number'
+                    WHEN 'case' THEN 'shared case number'
+                    WHEN 'vehicle' THEN 'shared vehicle number'
+                END AS relationship,
+                'Identifier ending ' || RIGHT(first.normalized_value, 4) AS "identifierHint",
+                NOW() AS "observedAt"
+            FROM record_identifiers first
+            JOIN record_identifiers second
+                ON first.identifier_type = second.identifier_type
+                AND first.normalized_value = second.normalized_value
+                AND first.record_key < second.record_key
         `)
     ]);
     const entities = [...people.rows, ...incidents.rows];
-    const edgeDetails = [...relationships.rows, ...incidentLinks.rows];
+    const edgeDetails = [...relationships.rows, ...incidentLinks.rows, ...identifierLinks.rows];
+    const linkCounts = new Map(entities.map(entity => [entity.id, 0]));
+    edgeDetails.forEach(edge => {
+        linkCounts.set(edge.source, (linkCounts.get(edge.source) || 0) + 1);
+        linkCounts.set(edge.target, (linkCounts.get(edge.target) || 0) + 1);
+    });
+    entities.forEach(entity => { entity.links = linkCounts.get(entity.id) || 0; });
     return {
         source: "postgres",
         entities,
@@ -228,69 +290,34 @@ app.get("/api/network", async (req, res) => {
     }
 });
 
-app.post("/api/network/relationships", async (req, res) => {
-    const { sourceId, targetId, relationship, sourceReference, sourceUrl } = req.body || {};
-    const allowedRelationships = [
-        "shared incident", "shared vehicle", "shared communication", "financial link",
-        "observed travel", "documented association", "other"
-    ];
-
-    if (typeof sourceId !== "string" || typeof targetId !== "string" || sourceId === targetId) {
-        return res.status(400).json({ error: "Choose two different network records." });
+app.post("/api/network/identifiers", async (req, res) => {
+    const { recordId, identifierType, identifierValue } = req.body || {};
+    const inputKey = { phone: "phoneNumber", case: "caseNumber", vehicle: "vehicleNumber" }[identifierType];
+    if (typeof recordId !== "string" || !inputKey) {
+        return res.status(400).json({ error: "Choose a record and supported identifier type." });
     }
-    if (!allowedRelationships.includes(relationship)) {
-        return res.status(400).json({ error: "Choose a supported relationship type." });
+    const parsed = parseIdentifiers({ [inputKey]: identifierValue });
+    if (parsed.error || !parsed.identifiers.length) {
+        return res.status(400).json({ error: parsed.error || "Enter an identifier." });
     }
-    if (typeof sourceReference !== "string" || !sourceReference.trim() || sourceReference.trim().length > 250) {
-        return res.status(400).json({ error: "Add a source reference (up to 250 characters)." });
-    }
-
-    let normalizedUrl = null;
-    if (sourceUrl) {
-        try {
-            normalizedUrl = new URL(sourceUrl).toString();
-            if (!["http:", "https:"].includes(new URL(normalizedUrl).protocol)) throw new Error();
-        } catch {
-            return res.status(400).json({ error: "Enter a valid HTTP or HTTPS source URL." });
-        }
-    }
-
     try {
-        const sourceIncident = sourceId.startsWith("I-");
-        const targetIncident = targetId.startsWith("I-");
-        if (sourceIncident && targetIncident) {
-            return res.status(400).json({ error: "A link must include at least one entity." });
-        }
-
-        let result;
-        if (sourceIncident || targetIncident) {
-            const personId = sourceIncident ? targetId : sourceId;
-            const caseId = (sourceIncident ? sourceId : targetId).slice(2);
-            const [person, incident] = await Promise.all([
-                pool.query("SELECT 1 FROM persons WHERE person_id = $1", [personId]),
-                pool.query("SELECT 1 FROM cases WHERE case_id = $1", [caseId])
-            ]);
-            if (!person.rowCount || !incident.rowCount) return res.status(404).json({ error: "A selected record no longer exists." });
-            result = await pool.query(`
-                INSERT INTO person_cases (person_id, case_id, relationship, source_reference, source_url, observed_at)
-                VALUES ($1, $2, $3, $4, $5, NOW())
-                ON CONFLICT (person_id, case_id) DO NOTHING RETURNING person_id
-            `, [personId, caseId, relationship, sourceReference.trim(), normalizedUrl]);
+        let recordExists;
+        if (recordId.startsWith("I-")) {
+            recordExists = await pool.query("SELECT 1 FROM cases WHERE case_id = $1", [recordId.slice(2)]);
         } else {
-            const [firstId, secondId] = [sourceId, targetId].sort();
-            const people = await pool.query("SELECT person_id FROM persons WHERE person_id = ANY($1)", [[firstId, secondId]]);
-            if (people.rowCount !== 2) return res.status(404).json({ error: "A selected entity no longer exists." });
-            result = await pool.query(`
-                INSERT INTO connections (person_1, person_2, relationship, source_reference, source_url, observed_at)
-                VALUES ($1, $2, $3, $4, $5, NOW())
-                ON CONFLICT (person_1, person_2, relationship) DO NOTHING RETURNING connection_id
-            `, [firstId, secondId, relationship, sourceReference.trim(), normalizedUrl]);
+            recordExists = await pool.query("SELECT 1 FROM persons WHERE person_id = $1", [recordId]);
         }
-
-        if (!result.rowCount) return res.status(409).json({ error: "That relationship is already recorded." });
-        return res.status(201).json({ saved: true });
+        if (!recordExists.rowCount) return res.status(404).json({ error: "The selected record no longer exists." });
+        const identifier = parsed.identifiers[0];
+        await saveIdentifiers(recordId, [identifier]);
+        const matches = await pool.query(`
+            SELECT COUNT(DISTINCT record_key)::int AS count
+            FROM record_identifiers
+            WHERE identifier_type = $1 AND normalized_value = $2
+        `, [identifier.type, identifier.normalizedValue]);
+        return res.status(201).json({ saved: true, matches: Math.max(0, matches.rows[0].count - 1) });
     } catch (error) {
-        return res.status(500).json({ error: "Relationship could not be saved.", details: error.message });
+        return res.status(500).json({ error: "Identifier could not be saved.", details: error.message });
     }
 });
 
@@ -308,11 +335,11 @@ app.get("/api/network/csv/:file", (req, res) => {
         const isNodes = req.params.file === "nodes";
         const isRelationships = req.params.file === "relationships";
         if (!isNodes && !isRelationships) return res.status(404).json({ error: "Unknown graph CSV" });
-        const header = isNodes ? "id:ID,name,type,links\n" : ":START_ID,:END_ID,relationship,source_reference,source_url,observed_at\n";
+        const header = isNodes ? "id:ID,name,type,links\n" : ":START_ID,:END_ID,relationship,identifier_hint,observed_at\n";
         const csv = value => `"${String(value ?? "").replaceAll('"', '""')}"`;
         const body = isNodes
             ? network.entities.map(entity => [entity.id, entity.name, entity.type, entity.links].map(csv).join(",")).join("\n")
-            : network.edgeDetails.map(edge => [edge.source, edge.target, edge.relationship, edge.sourceReference, edge.sourceUrl, edge.observedAt].map(csv).join(",")).join("\n");
+            : network.edgeDetails.map(edge => [edge.source, edge.target, edge.relationship, edge.identifierHint, edge.observedAt].map(csv).join(",")).join("\n");
         res.type("text/csv").attachment(`${req.params.file}.csv`).send(header + body + "\n");
     }).catch(error => res.status(500).json({ error: "Database error", details: error.message }));
 });
@@ -322,24 +349,16 @@ app.post("/api/entities", async (req, res) => {
         const body = req.body || {};
         const name = typeof body.name === "string" ? body.name.trim() : "";
         const type = typeof body.type === "string" ? body.type : "";
-        const sourceReference = typeof body.sourceReference === "string" ? body.sourceReference.trim() : "";
         const allowedTypes = ["person", "organization", "vehicle", "phone", "location", "account", "device"];
         if (!name || name.length > 120) return res.status(400).json({ error: "Enter a record name (up to 120 characters)." });
         if (!allowedTypes.includes(type)) return res.status(400).json({ error: "Choose a supported record type." });
-        if (!sourceReference || sourceReference.length > 250) return res.status(400).json({ error: "A source reference is required (up to 250 characters)." });
-        let sourceUrl = null;
-        if (body.sourceUrl) {
-            try {
-                sourceUrl = new URL(body.sourceUrl).toString();
-                if (!["http:", "https:"].includes(new URL(sourceUrl).protocol)) throw new Error();
-            } catch {
-                return res.status(400).json({ error: "Enter a valid HTTP or HTTPS source URL." });
-            }
-        }
+        const parsed = parseIdentifiers(body);
+        if (parsed.error) return res.status(400).json({ error: parsed.error });
         const last = await pool.query("SELECT person_id FROM persons WHERE person_id LIKE 'E%' ORDER BY person_id DESC LIMIT 1");
         const nextNumber = last.rows.length ? Number(last.rows[0].person_id.slice(1)) + 1 : 1;
-        const entity = { id: `E${String(nextNumber).padStart(3, "0")}`, name, type, sourceReference, sourceUrl, links: 0 };
-        await pool.query("INSERT INTO persons (person_id, name, entity_type, source_reference, source_url) VALUES ($1, $2, $3, $4, $5)", [entity.id, entity.name, entity.type, sourceReference, sourceUrl]);
+        const entity = { id: `E${String(nextNumber).padStart(3, "0")}`, name, type, links: 0 };
+        await pool.query("INSERT INTO persons (person_id, name, entity_type) VALUES ($1, $2, $3)", [entity.id, entity.name, entity.type]);
+        await saveIdentifiers(entity.id, parsed.identifiers);
         res.status(201).json(entity);
     } catch (error) {
         res.status(500).json({ error: "Database error", details: error.message });
@@ -366,8 +385,8 @@ app.get("/api/cases", async (req, res) => {
         const result = await pool.query(`
             SELECT 'NX-2026-' || c.case_id AS id, c.crime_type AS category, c.case_description AS observation,
                 c.location, c.case_date AS "observedAt",
+                (SELECT display_value FROM record_identifiers i WHERE i.record_key = 'I-' || c.case_id AND i.identifier_type = 'case' LIMIT 1) AS "caseNumber",
                 (SELECT COUNT(*) FROM person_cases pc WHERE pc.case_id = c.case_id)::int AS "linkedEntities",
-                c.source_reference AS "sourceReference", c.source_url AS "sourceUrl"
             FROM cases c ORDER BY c.case_date DESC NULLS LAST, c.case_id DESC
         `);
         res.json({ incidents: result.rows });
@@ -387,9 +406,8 @@ app.post("/api/cases", async (req, res) => {
         const caseDescription = typeof body.description === "string" ? body.description.trim() : "";
         const location = typeof body.location === "string" ? body.location.trim() : "";
         const caseDate = typeof body.caseDate === "string" ? body.caseDate : "";
-        const sourceReference = typeof body.sourceReference === "string" ? body.sourceReference.trim() : "";
-        const sourceUrl = typeof body.sourceUrl === "string" ? body.sourceUrl.trim() : "";
         const parsedDate = new Date(`${caseDate}T00:00:00.000Z`);
+        const parsed = parseIdentifiers(body);
 
         if (!crimeType || crimeType.length > 100) {
             return res.status(400).json({ error: "Case type is required (up to 100 characters)." });
@@ -400,25 +418,15 @@ app.post("/api/cases", async (req, res) => {
         if (!location || location.length > 150) {
             return res.status(400).json({ error: "Location is required (up to 150 characters)." });
         }
-        if (!sourceReference || sourceReference.length > 250) {
-            return res.status(400).json({ error: "A source reference is required (up to 250 characters)." });
-        }
-        let normalizedUrl = null;
-        if (sourceUrl) {
-            try {
-                normalizedUrl = new URL(sourceUrl).toString();
-                if (!["http:", "https:"].includes(new URL(normalizedUrl).protocol)) throw new Error();
-            } catch {
-                return res.status(400).json({ error: "Enter a valid HTTP or HTTPS source URL." });
-            }
-        }
+        if (parsed.error) return res.status(400).json({ error: parsed.error });
         if (!/^\d{4}-\d{2}-\d{2}$/.test(caseDate) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== caseDate) {
             return res.status(400).json({ error: "Enter a valid case date." });
         }
 
         const next = await pool.query("SELECT COALESCE(MAX(CAST(SUBSTRING(case_id FROM 2) AS INTEGER)), 0) + 1 AS next FROM cases WHERE case_id ~ '^C[0-9]+$'");
         const caseId = `C${String(next.rows[0].next).padStart(3, "0")}`;
-        await pool.query("INSERT INTO cases (case_id, crime_type, case_description, case_date, location, source_reference, source_url, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())", [caseId, crimeType, caseDescription, caseDate, location, sourceReference, normalizedUrl]);
+        await pool.query("INSERT INTO cases (case_id, crime_type, case_description, case_date, location, updated_at) VALUES ($1, $2, $3, $4, $5, NOW())", [caseId, crimeType, caseDescription, caseDate, location]);
+        await saveIdentifiers(`I-${caseId}`, parsed.identifiers);
         res.status(201).json({ id: `NX-2026-${caseId}` });
     } catch (error) {
         res.status(500).json({ error: "Database error", details: error.message });

@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NEXORA — Criminal Analysis System</title>
-<link rel="stylesheet" href="style.css?v=network-analysis-20260926">
+<link rel="stylesheet" href="style.css?v=identifier-graph-20260926">
 </head><body>
 <div class="shell">
 <aside>
@@ -17,24 +17,23 @@
   <div class="sideBottom"><span>● API ONLINE</span><small>SIH 2026 PROTOTYPE<br>INDIA / INVESTIGATIVE AI</small></div>
 </aside>
 <main>
-<header><div><small>INVESTIGATIVE INTELLIGENCE WORKSPACE</small><h1 id="pageTitle">Network Analysis</h1></div><div class="headRight"><span class="live">● SYSTEM READY</span><button id="refresh" aria-label="Refresh data">↻</button><button class="user">IO · ANALYST</button></div></header>
+<header><div><small>INVESTIGATIVE INTELLIGENCE WORKSPACE</small><h1 id="pageTitle">Network Analysis</h1></div><div class="headRight"><span class="dataMode">SAMPLE DATA</span><span class="live">● SYSTEM READY</span><button id="refresh" aria-label="Refresh data">↻</button><button class="user">IO · ANALYST</button></div></header>
 
 <section id="sentinel" class="page">
   <div class="sectionHead"><div><label>GRAPH ANALYSIS</label><h2>Pattern analysis</h2><p>Find recurring links and shared incident clusters in the recorded network.</p></div><span class="model">● EXPLAINABLE SIGNALS</span></div>
   <div class="analysisStats" id="analysisStats"></div>
   <div class="patternResults" id="patternResults"></div>
-  <div class="notice"><b>Analyst boundary:</b> Graph patterns are leads for review, not proof of criminal conduct, identity, or guilt. Each link must be checked against its source.</div>
 </section>
 
 <section id="network" class="page active">
-<div class="sectionHead"><div><label>RELATIONSHIP GRAPH</label><h2>Network analysis</h2><p>Explore documented links across entities and incident records.</p></div><div class="sectionActions"><a class="download" href="/api/network/csv/nodes">↓ Nodes CSV</a><a class="download" href="/api/network/csv/relationships">↓ Links CSV</a><button class="primary" id="addEntity">＋ Add record</button><button id="addRelationship">＋ Add evidence link</button></div></div>
-<div class="notice"><b>Demonstration data:</b> Individual entities and links are synthetic. This prototype has no access controls; do not enter sensitive personal data. A graph connection is not a finding of guilt.</div>
+<div class="sectionHead"><div><label>RELATIONSHIP GRAPH</label><h2>Network analysis</h2><p>Explore connections across people, identifiers, and incident records.</p></div><div class="sectionActions"><a class="download" href="/api/network/csv/nodes">↓ Nodes CSV</a><a class="download" href="/api/network/csv/relationships">↓ Links CSV</a><button class="primary" id="addEntity">＋ Add record</button><button id="addRelationship">＋ Match identifier</button></div></div>
+<div class="graphTools"><input id="graphSearch" type="search" placeholder="Find a person, case, phone, or vehicle"><button id="focusToggle" aria-pressed="true">Show all records</button><span id="graphCount"></span></div>
 <div class="network"><div class="graph" id="graph"></div><div class="card inspector"><label>SELECTED RECORD</label><div class="avatar" id="avatar">E</div><h3 id="entityName">Select a node</h3><small id="entityType">NETWORK RECORD</small><p class="linkedCount">Linked records <b id="links">0</b></p><div class="entityEvidence" id="entityEvidence"></div><button class="primary full" id="trace">Trace connections →</button></div></div>
 </section>
 
 <section id="cases" class="page">
 <div class="sectionHead"><div><label>NETWORK INPUT</label><h2>Incident records</h2><p>Document sourced incident context, then connect it to relevant entities in the network.</p></div><button class="primary" id="newCase">＋ Add incident</button></div>
-<div class="card table"><table><thead><tr><th>ID</th><th>INCIDENT</th><th>LOCATION</th><th>DATE</th><th>LINKED ENTITIES</th><th>SOURCE</th></tr></thead><tbody id="caseRows"></tbody></table></div>
+<div class="card table"><table><thead><tr><th>RECORD</th><th>INCIDENT</th><th>LOCATION</th><th>DATE</th><th>CASE NUMBER</th><th>LINKED ENTITIES</th></tr></thead><tbody id="caseRows"></tbody></table></div>
 </section>
 
 <section id="ledger" class="page">
@@ -57,23 +56,22 @@
       <div class="formField"><label for="caseDate">OBSERVED DATE</label><input id="caseDate" name="caseDate" type="date" required></div>
       <div class="formField"><label for="caseLocation">LOCATION</label><input id="caseLocation" name="location" maxlength="150" required placeholder="City or district"></div>
       <div class="formField formWide"><label for="caseDescription">OBSERVATION</label><textarea id="caseDescription" name="description" maxlength="2000" required rows="3" placeholder="Record verifiable facts, not conclusions"></textarea></div>
-      <div class="formField"><label for="caseSource">SOURCE REFERENCE</label><input id="caseSource" name="sourceReference" maxlength="250" required placeholder="Report, record, or dataset ID"></div>
-      <div class="formField"><label for="caseSourceUrl">SOURCE URL</label><input id="caseSourceUrl" name="sourceUrl" type="url" placeholder="https://..."></div>
+      <div class="formField"><label for="caseNumber">CASE NUMBER</label><input id="caseNumber" name="caseNumber" maxlength="80" placeholder="FIR or case number"></div>
+      <div class="formField"><label for="casePhone">PHONE NUMBER</label><input id="casePhone" name="phoneNumber" inputmode="tel" maxlength="24" placeholder="Phone number"></div>
+      <div class="formField"><label for="caseVehicle">VEHICLE NUMBER</label><input id="caseVehicle" name="vehicleNumber" maxlength="24" placeholder="Registration number"></div>
     </div>
     <div class="formActions"><button class="dialogCancel" type="button" id="cancelCase">Cancel</button><button class="primary" type="submit" id="saveCase">Save incident</button></div>
   </form>
 </dialog>
 <dialog class="caseDialog" id="relationshipDialog" aria-labelledby="relationshipDialogTitle">
   <form id="relationshipForm">
-    <div class="caseDialogHead"><div><label>DOCUMENTED RELATIONSHIP</label><h2 id="relationshipDialogTitle">Add evidence link</h2></div><button class="dialogClose" type="button" id="closeRelationshipDialog" aria-label="Close">×</button></div>
+    <div class="caseDialogHead"><div><label>NETWORK MATCHING</label><h2 id="relationshipDialogTitle">Match identifier</h2></div><button class="dialogClose" type="button" id="closeRelationshipDialog" aria-label="Close">×</button></div>
     <div class="formGrid">
-      <div class="formField"><label for="relationshipSource">FROM RECORD</label><select id="relationshipSource" name="sourceId" required></select></div>
-      <div class="formField"><label for="relationshipTarget">TO RECORD</label><select id="relationshipTarget" name="targetId" required></select></div>
-      <div class="formField"><label for="relationshipType">LINK TYPE</label><select id="relationshipType" name="relationship" required><option value="shared incident">Shared incident</option><option value="shared vehicle">Shared vehicle</option><option value="shared communication">Shared communication</option><option value="financial link">Financial link</option><option value="observed travel">Observed travel</option><option value="documented association">Documented association</option><option value="other">Other</option></select></div>
-      <div class="formField"><label for="relationshipReference">SOURCE REFERENCE</label><input id="relationshipReference" name="sourceReference" maxlength="250" required placeholder="Report, record, or dataset ID"></div>
-      <div class="formField formWide"><label for="relationshipUrl">SOURCE URL</label><input id="relationshipUrl" name="sourceUrl" type="url" placeholder="https://..."></div>
+      <div class="formField formWide"><label for="identifierRecord">RECORD</label><select id="identifierRecord" name="recordId" required></select></div>
+      <div class="formField"><label for="identifierType">IDENTIFIER TYPE</label><select id="identifierType" name="identifierType" required><option value="phone">Phone number</option><option value="case">Case number</option><option value="vehicle">Vehicle number</option></select></div>
+      <div class="formField"><label for="identifierValue">IDENTIFIER</label><input id="identifierValue" name="identifierValue" required maxlength="80" placeholder="Enter exact identifier"></div>
     </div>
-    <div class="formActions"><button class="dialogCancel" type="button" id="cancelRelationship">Cancel</button><button class="primary" type="submit" id="saveRelationship">Save link</button></div>
+    <div class="formActions"><button class="dialogCancel" type="button" id="cancelRelationship">Cancel</button><button class="primary" type="submit" id="saveRelationship">Find matches</button></div>
   </form>
 </dialog>
 <dialog class="caseDialog" id="entityDialog" aria-labelledby="entityDialogTitle">
@@ -82,11 +80,12 @@
     <div class="formGrid">
       <div class="formField"><label for="entityNameInput">RECORD NAME</label><input id="entityNameInput" name="name" maxlength="120" required placeholder="Entity or reference label"></div>
       <div class="formField"><label for="entityTypeInput">RECORD TYPE</label><select id="entityTypeInput" name="type" required><option value="person">Person</option><option value="organization">Organization</option><option value="vehicle">Vehicle</option><option value="phone">Phone</option><option value="location">Location</option><option value="account">Account</option><option value="device">Device</option></select></div>
-      <div class="formField"><label for="entitySourceInput">SOURCE REFERENCE</label><input id="entitySourceInput" name="sourceReference" maxlength="250" required placeholder="Report, record, or dataset ID"></div>
-      <div class="formField"><label for="entityUrlInput">SOURCE URL</label><input id="entityUrlInput" name="sourceUrl" type="url" placeholder="https://..."></div>
+      <div class="formField"><label for="entityPhoneInput">PHONE NUMBER</label><input id="entityPhoneInput" name="phoneNumber" inputmode="tel" maxlength="24" placeholder="Phone number"></div>
+      <div class="formField"><label for="entityCaseInput">CASE NUMBER</label><input id="entityCaseInput" name="caseNumber" maxlength="80" placeholder="FIR or case number"></div>
+      <div class="formField"><label for="entityVehicleInput">VEHICLE NUMBER</label><input id="entityVehicleInput" name="vehicleNumber" maxlength="24" placeholder="Registration number"></div>
     </div>
     <div class="formActions"><button class="dialogCancel" type="button" id="cancelEntity">Cancel</button><button class="primary" type="submit" id="saveEntity">Save record</button></div>
   </form>
 </dialog>
-<script src="app.js?v=network-analysis-20260926"></script>
+<script src="app.js?v=identifier-graph-20260926"></script>
 </body></html>
