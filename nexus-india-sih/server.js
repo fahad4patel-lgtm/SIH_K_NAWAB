@@ -102,12 +102,17 @@ async function ensureDatabase() {
         CREATE TABLE IF NOT EXISTS record_identifiers (
             identifier_id SERIAL PRIMARY KEY,
             record_key VARCHAR(30) NOT NULL,
-            identifier_type VARCHAR(20) NOT NULL CHECK (identifier_type IN ('phone', 'case', 'vehicle')),
+            identifier_type VARCHAR(20) NOT NULL CHECK (identifier_type IN ('phone', 'phone_ref', 'case', 'vehicle')),
             normalized_value VARCHAR(80) NOT NULL,
             display_value VARCHAR(80) NOT NULL,
             UNIQUE (record_key, identifier_type, normalized_value)
         );
+        ALTER TABLE record_identifiers DROP CONSTRAINT IF EXISTS record_identifiers_identifier_type_check;
+        ALTER TABLE record_identifiers ADD CONSTRAINT record_identifiers_identifier_type_check CHECK (identifier_type IN ('phone', 'phone_ref', 'case', 'vehicle'));
         CREATE INDEX IF NOT EXISTS record_identifiers_match_idx ON record_identifiers (identifier_type, normalized_value);
+        CREATE INDEX IF NOT EXISTS connections_person_1_idx ON connections (person_1);
+        CREATE INDEX IF NOT EXISTS connections_person_2_idx ON connections (person_2);
+        CREATE INDEX IF NOT EXISTS person_cases_case_id_idx ON person_cases (case_id);
         ALTER TABLE cases ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'MEDIUM';
         ALTER TABLE cases ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'OPEN';
         ALTER TABLE cases ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
@@ -142,7 +147,13 @@ async function ensureDatabase() {
 
 function parseIdentifiers(body) {
     const fields = [
-        { type: "phone", key: "phoneNumber", normalize: value => value.replace(/\D/g, ""), valid: value => /^[+()\-\s\d]+$/.test(value) },
+        { type: "phone", key: "phoneNumber", normalize: value => {
+            const digits = value.replace(/\D/g, "");
+            if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
+            if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
+            return digits;
+        }, valid: value => /^[+()\-\s\d]+$/.test(value) },
+        { type: "phone_ref", key: "phoneId", normalize: value => value.toUpperCase().replace(/[^A-Z0-9-]/g, ""), valid: value => /^[A-Z0-9-]+$/i.test(value) },
         { type: "case", key: "caseNumber", normalize: value => value.toUpperCase().replace(/[^A-Z0-9]/g, ""), valid: () => true },
         { type: "vehicle", key: "vehicleNumber", normalize: value => value.toUpperCase().replace(/[^A-Z0-9]/g, ""), valid: () => true }
     ];
@@ -174,20 +185,37 @@ async function saveIdentifiers(recordKey, identifiers) {
 }
 
 async function getNetwork() {
-    const [people, incidents, relationships, incidentLinks, identifierLinks] = await Promise.all([
+    const [people, incidents, relationships, incidentLinks, identifierRows] = await Promise.all([
         pool.query(`
-        SELECT p.person_id AS id, p.name, COALESCE(p.entity_type, 'person') AS type,
-            (SELECT COUNT(*) FROM connections c WHERE c.person_1 = p.person_id OR c.person_2 = p.person_id)
-            + (SELECT COUNT(*) FROM person_cases pc WHERE pc.person_id = p.person_id) AS links
-        FROM persons p ORDER BY p.person_id
+            WITH connection_counts AS (
+                SELECT person_id, COUNT(*)::int AS links
+                FROM (
+                    SELECT person_1 AS person_id FROM connections
+                    UNION ALL
+                    SELECT person_2 AS person_id FROM connections
+                ) connection_links
+                WHERE person_id IS NOT NULL
+                GROUP BY person_id
+            ), case_counts AS (
+                SELECT person_id, COUNT(*)::int AS links FROM person_cases GROUP BY person_id
+            )
+            SELECT p.person_id AS id, p.name, COALESCE(p.entity_type, 'person') AS type,
+                p.occupation, p.city, p.state, p.age, p.gender,
+                COALESCE(cc.links, 0) + COALESCE(pc.links, 0) AS links
+            FROM persons p
+            LEFT JOIN connection_counts cc ON cc.person_id = p.person_id
+            LEFT JOIN case_counts pc ON pc.person_id = p.person_id
+            ORDER BY p.person_id
         `),
         pool.query(`
             SELECT 'I-' || case_id AS id,
                 'Incident ' || case_id || ' · ' || COALESCE(crime_type, 'Unclassified incident') AS name,
                 'incident' AS type,
-                (SELECT COUNT(*) FROM person_cases pc WHERE pc.case_id = c.case_id)::int AS links,
+                COALESCE(pc.links, 0) AS links,
                 location, case_date
-            FROM cases c ORDER BY case_id
+            FROM cases c
+            LEFT JOIN (SELECT case_id, COUNT(*)::int AS links FROM person_cases GROUP BY case_id) pc USING (case_id)
+            ORDER BY case_id
         `),
         pool.query(`
             SELECT person_1 AS source, person_2 AS target, relationship,
@@ -200,23 +228,33 @@ async function getNetwork() {
             FROM person_cases ORDER BY case_id, person_id
         `),
         pool.query(`
-            SELECT first.record_key AS source, second.record_key AS target,
-                CASE first.identifier_type
-                    WHEN 'phone' THEN 'shared phone number'
-                    WHEN 'case' THEN 'shared case number'
-                    WHEN 'vehicle' THEN 'shared vehicle number'
-                END AS relationship,
-                'Identifier ending ' || RIGHT(first.normalized_value, 4) AS "identifierHint",
-                NOW() AS "observedAt"
-            FROM record_identifiers first
-            JOIN record_identifiers second
-                ON first.identifier_type = second.identifier_type
-                AND first.normalized_value = second.normalized_value
-                AND first.record_key < second.record_key
+            SELECT record_key AS "recordKey", identifier_type AS "identifierType",
+                normalized_value AS "normalizedValue"
+            FROM record_identifiers
+            ORDER BY identifier_type, normalized_value, record_key
         `)
     ]);
-    const entities = [...people.rows, ...incidents.rows];
-    const edgeDetails = [...relationships.rows, ...incidentLinks.rows, ...identifierLinks.rows];
+    const identifierEntities = new Map();
+    const identifierLinks = identifierRows.rows.map(row => {
+        const key = `${row.identifierType}:${row.normalizedValue}`;
+        let entity = identifierEntities.get(key);
+        if (!entity) {
+            const suffix = row.normalizedValue.slice(-4);
+            const id = `X-${crypto.createHash("sha256").update(key).digest("hex").slice(0, 16)}`;
+            const label = { phone: "PHONE", phone_ref: "PHONE ID", case: "CASE", vehicle: "VEHICLE" }[row.identifierType];
+            entity = { id, name: `${label} ···${suffix}`, type: "identifier", identifierType: row.identifierType, links: 0 };
+            identifierEntities.set(key, entity);
+        }
+        return {
+            source: row.recordKey,
+            target: entity.id,
+            relationship: row.identifierType === "phone_ref" ? "shared phone ID" : `shared ${row.identifierType} number`,
+            identifierHint: `Identifier ending ${row.normalizedValue.slice(-4)}`,
+            observedAt: null
+        };
+    });
+    const entities = [...people.rows, ...incidents.rows, ...identifierEntities.values()];
+    const edgeDetails = [...relationships.rows, ...incidentLinks.rows, ...identifierLinks];
     const linkCounts = new Map(entities.map(entity => [entity.id, 0]));
     edgeDetails.forEach(edge => {
         linkCounts.set(edge.source, (linkCounts.get(edge.source) || 0) + 1);
@@ -271,7 +309,7 @@ app.get("/api/overview", async (req, res) => {
         const network = await getNetwork();
         res.json({
             metrics: {
-                entityCount: network.entities.filter(entity => entity.type !== "incident").length,
+                entityCount: network.entities.filter(entity => entity.type !== "incident" && entity.type !== "identifier").length,
                 incidentCount: network.entities.filter(entity => entity.type === "incident").length,
                 relationshipCount: network.edgeDetails.length
             },
@@ -292,7 +330,7 @@ app.get("/api/network", async (req, res) => {
 
 app.post("/api/network/identifiers", async (req, res) => {
     const { recordId, identifierType, identifierValue } = req.body || {};
-    const inputKey = { phone: "phoneNumber", case: "caseNumber", vehicle: "vehicleNumber" }[identifierType];
+    const inputKey = { phone: "phoneNumber", phone_ref: "phoneId", case: "caseNumber", vehicle: "vehicleNumber" }[identifierType];
     if (typeof recordId !== "string" || !inputKey) {
         return res.status(400).json({ error: "Choose a record and supported identifier type." });
     }
@@ -309,6 +347,9 @@ app.post("/api/network/identifiers", async (req, res) => {
         }
         if (!recordExists.rowCount) return res.status(404).json({ error: "The selected record no longer exists." });
         const identifier = parsed.identifiers[0];
+        if (identifier.type !== "phone" && (recordId.startsWith("TM-") || recordId.startsWith("I-TM-"))) {
+            identifier.normalizedValue = `TM-${identifier.normalizedValue}`;
+        }
         await saveIdentifiers(recordId, [identifier]);
         const matches = await pool.query(`
             SELECT COUNT(DISTINCT record_key)::int AS count
@@ -368,7 +409,7 @@ app.post("/api/entities", async (req, res) => {
 app.get("/api/entities/:id/connections", async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT p.person_id AS id, p.name, c.relationship
+            SELECT p.person_id AS id, p.name, c.relationship, p.occupation, p.city, p.state
             FROM connections c
             JOIN persons p ON p.person_id = CASE WHEN c.person_1 = $1 THEN c.person_2 ELSE c.person_1 END
             WHERE c.person_1 = $1 OR c.person_2 = $1
@@ -386,7 +427,7 @@ app.get("/api/cases", async (req, res) => {
             SELECT 'NX-2026-' || c.case_id AS id, c.crime_type AS category, c.case_description AS observation,
                 c.location, c.case_date AS "observedAt",
                 (SELECT display_value FROM record_identifiers i WHERE i.record_key = 'I-' || c.case_id AND i.identifier_type = 'case' LIMIT 1) AS "caseNumber",
-                (SELECT COUNT(*) FROM person_cases pc WHERE pc.case_id = c.case_id)::int AS "linkedEntities",
+                (SELECT COUNT(*) FROM person_cases pc WHERE pc.case_id = c.case_id)::int AS "linkedEntities"
             FROM cases c ORDER BY c.case_date DESC NULLS LAST, c.case_id DESC
         `);
         res.json({ incidents: result.rows });
@@ -466,11 +507,120 @@ app.use((req, res) => {
 const port =
     Number(process.env.NEXORA_PORT || process.env.PORT) || 3000;
 
-ensureDatabase()
-    .then(() => app.listen(port, () => {
-        console.log(`NEXORA backend running at http://localhost:${port}`);
-    }))
-    .catch(error => {
-        console.error("DATABASE INITIALIZATION ERROR:", error.message);
-        process.exitCode = 1;
-    });
+const teamMemberRecords = [
+    { id: "P001", name: "Aarav Mehta", age: 29, gender: "Male", city: "Pune", state: "Maharashtra", occupation: "Used-car dealer", case: ["C001", "Vehicle theft", "2025-04-12", "Pune, Maharashtra", "Arrested"], vehicle: "V001", phone: "PH001", links: [["P014", "associate"], ["P003", "financer"]] },
+    { id: "P002", name: "Rohan Kulkarni", age: 34, gender: "Male", city: "Nashik", state: "Maharashtra", occupation: "Transport contractor", case: ["C002", "Illegal transportation of stolen goods", "2025-05-19", "Nashik, Maharashtra", "Under Investigation"], vehicle: "V002", phone: "PH002", links: [["P021", "transporter"], ["P004", "associate"]] },
+    { id: "P003", name: "Sameer Shaikh", age: 31, gender: "Male", city: "Mumbai", state: "Maharashtra", occupation: "Electronics wholesaler", case: ["C003", "Sale of stolen electronics", "2025-06-03", "Mumbai, Maharashtra", "Arrested"], vehicle: "V003", phone: "PH003", links: [["P027", "financer"], ["P001", "associate"]] },
+    { id: "P004", name: "Vikram Deshmukh", age: 27, gender: "Male", city: "Aurangabad", state: "Maharashtra", occupation: "Delivery driver", case: ["C004", "Transporting stolen property", "2025-06-27", "Chhatrapati Sambhajinagar, Maharashtra", "Not Arrested"], vehicle: "V004", phone: "PH004", links: [["P032", "transporter"], ["P002", "associate"]] },
+    { id: "P005", name: "Neha Patil", age: 26, gender: "Female", city: "Kolhapur", state: "Maharashtra", occupation: "Accountant", case: ["C005", "Financial fraud", "2025-07-14", "Kolhapur, Maharashtra", "Under Investigation"], vehicle: "V005", phone: "PH005", links: [["P045", "associate"], ["P006", "financer"]] },
+    { id: "P006", name: "Kunal Jadhav", age: 30, gender: "Male", city: "Satara", state: "Maharashtra", occupation: "Small-business owner", case: ["C006", "Forged financial documents", "2025-08-02", "Satara, Maharashtra", "Arrested"], vehicle: "V006", phone: "PH006", links: [["P051", "associate"], ["P005", "associate"]] },
+    { id: "P007", name: "Aditya More", age: 25, gender: "Male", city: "Solapur", state: "Maharashtra", occupation: "Freelance driver", case: ["C007", "Transporting stolen goods", "2025-08-21", "Solapur, Maharashtra", "Not Arrested"], vehicle: "V007", phone: "PH007", links: [["P027", "transporter"], ["P008", "associate"]] },
+    { id: "P008", name: "Manish Rao", age: 36, gender: "Male", city: "Bengaluru", state: "Karnataka", occupation: "Warehouse manager", case: ["C008", "Concealing stolen property", "2025-09-09", "Bengaluru, Karnataka", "Under Investigation"], vehicle: "V008", phone: "PH008", links: [["P034", "associate"], ["P007", "associate"]] },
+    { id: "P009", name: "Rohit Naik", age: 28, gender: "Male", city: "Panaji", state: "Goa", occupation: "Logistics coordinator", case: ["C009", "Illegal movement of goods", "2025-10-05", "Panaji, Goa", "Arrested"], vehicle: "V009", phone: "PH009", links: [["P045", "recruiter"], ["P010", "associate"]] },
+    { id: "P010", name: "Sagar Bhosale", age: 33, gender: "Male", city: "Pune", state: "Maharashtra", occupation: "Scrap dealer", case: ["C010", "Possession of stolen vehicle parts", "2025-10-22", "Pune, Maharashtra", "Under Investigation"], vehicle: "V010", phone: "PH010", links: [["P021", "associate"], ["P009", "associate"]] }
+];
+
+async function importTeamMemberDataset() {
+    const client = await pool.connect();
+    const sourceReference = "Authorized Team Member Dataset";
+    const personKey = id => `TM-${id}`;
+    const caseKey = id => `TM-${id}`;
+    const externalKey = id => `TM-X-${id}`;
+
+    async function addConnection(firstId, secondId, relationship) {
+        const [person1, person2] = [firstId, secondId].sort();
+        await client.query(`
+            INSERT INTO connections (person_1, person_2, relationship, source_reference, observed_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            ON CONFLICT (person_1, person_2, relationship)
+            DO UPDATE SET source_reference = EXCLUDED.source_reference
+        `, [person1, person2, relationship, sourceReference]);
+    }
+
+    async function addIdentifier(recordKey, type, normalizedValue, displayValue) {
+        await client.query(`
+            INSERT INTO record_identifiers (record_key, identifier_type, normalized_value, display_value)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (record_key, identifier_type, normalized_value)
+            DO UPDATE SET display_value = EXCLUDED.display_value
+        `, [recordKey, type, normalizedValue, displayValue]);
+    }
+
+    try {
+        await client.query("BEGIN");
+        const memberIds = new Set(teamMemberRecords.map(record => record.id));
+        const externalIds = [...new Set(teamMemberRecords.flatMap(record => record.links.map(([id]) => id)).filter(id => !memberIds.has(id)))];
+
+        for (const externalId of externalIds) {
+            await client.query(`
+                INSERT INTO persons (person_id, name, entity_type, source_reference)
+                VALUES ($1, $2, 'reference', $3)
+                ON CONFLICT (person_id) DO NOTHING
+            `, [externalKey(externalId), `Unresolved team reference ${externalId}`, sourceReference]);
+        }
+
+        for (const record of teamMemberRecords) {
+            const [localCaseId, offence, date, location, arrestStatus] = record.case;
+            await client.query(`
+                INSERT INTO persons (person_id, name, age, gender, city, state, occupation, entity_type, source_reference)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, 'person', $8)
+                ON CONFLICT (person_id) DO UPDATE SET
+                    name = EXCLUDED.name, age = EXCLUDED.age, gender = EXCLUDED.gender,
+                    city = EXCLUDED.city, state = EXCLUDED.state, occupation = EXCLUDED.occupation,
+                    entity_type = EXCLUDED.entity_type, source_reference = EXCLUDED.source_reference
+            `, [personKey(record.id), record.name, record.age, record.gender, record.city, record.state, record.occupation, sourceReference]);
+
+            await client.query(`
+                INSERT INTO cases (case_id, crime_type, case_description, case_date, location, arrest_status, source_reference, updated_at)
+                VALUES ($1, $2, '', $3, $4, $5, $6, NOW())
+                ON CONFLICT (case_id) DO UPDATE SET
+                    crime_type = EXCLUDED.crime_type, case_date = EXCLUDED.case_date,
+                    location = EXCLUDED.location, arrest_status = EXCLUDED.arrest_status,
+                    source_reference = EXCLUDED.source_reference, updated_at = NOW()
+            `, [caseKey(localCaseId), offence, date, location, arrestStatus, sourceReference]);
+
+            await client.query(`
+                INSERT INTO person_cases (person_id, case_id, relationship, source_reference, observed_at)
+                VALUES ($1, $2, 'linked to incident', $3, NOW())
+                ON CONFLICT (person_id, case_id) DO UPDATE SET
+                    relationship = EXCLUDED.relationship, source_reference = EXCLUDED.source_reference
+            `, [personKey(record.id), caseKey(localCaseId), sourceReference]);
+
+            await addIdentifier(`I-${caseKey(localCaseId)}`, "case", `TM-${localCaseId}`, localCaseId);
+            await addIdentifier(personKey(record.id), "phone_ref", `TM-${record.phone}`, record.phone);
+            await addIdentifier(personKey(record.id), "vehicle", `TM-${record.vehicle}`, record.vehicle);
+
+            for (const [connectedId, relationship] of record.links) {
+                const targetId = memberIds.has(connectedId) ? personKey(connectedId) : externalKey(connectedId);
+                await addConnection(personKey(record.id), targetId, relationship);
+            }
+        }
+
+        await client.query("COMMIT");
+        console.log(`Imported ${teamMemberRecords.length} Team Member records, ${teamMemberRecords.length} incidents, and ${externalIds.length} unresolved cross-team references.`);
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+if (process.argv.includes("--import-team-member-data")) {
+    ensureDatabase()
+        .then(importTeamMemberDataset)
+        .catch(error => {
+            console.error("Team Member import failed; transaction rolled back:", error.message);
+            process.exitCode = 1;
+        })
+        .finally(() => pool.end());
+} else {
+    ensureDatabase()
+        .then(() => app.listen(port, () => {
+            console.log(`NEXORA backend running at http://localhost:${port}`);
+        }))
+        .catch(error => {
+            console.error("DATABASE INITIALIZATION ERROR:", error.message);
+            process.exitCode = 1;
+        });
+}

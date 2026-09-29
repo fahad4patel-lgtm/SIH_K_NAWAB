@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NEXORA — Criminal Analysis System</title>
-<link rel="stylesheet" href="style.css?v=identifier-graph-20260926">
+<link rel="stylesheet" href="style.css?v=visible-network-20260927">
 </head><body>
 <div class="shell">
 <aside>
@@ -12,7 +12,6 @@
     <button class="nav" data-page="sentinel" aria-label="Pattern Analysis" title="Pattern Analysis">⌁ <span>Analyze</span></button>
     <button class="nav" data-page="cases" aria-label="Incident Data" title="Incident Data">▣ <span>Incidents</span></button>
     <button class="nav" data-page="ledger" aria-label="Evidence Ledger" title="Evidence Ledger">◇ <span>Ledger</span></button>
-    <button class="nav" data-page="sources" aria-label="Data Sources" title="Data Sources">◈ <span>Sources</span></button>
   </nav>
   <div class="sideBottom"><span>● API ONLINE</span><small>SIH 2026 PROTOTYPE<br>INDIA / INVESTIGATIVE AI</small></div>
 </aside>
@@ -20,15 +19,206 @@
 <header><div><small>INVESTIGATIVE INTELLIGENCE WORKSPACE</small><h1 id="pageTitle">Network Analysis</h1></div><div class="headRight"><span class="dataMode">SAMPLE DATA</span><span class="live">● SYSTEM READY</span><button id="refresh" aria-label="Refresh data">↻</button><button class="user">IO · ANALYST</button></div></header>
 
 <section id="sentinel" class="page">
-  <div class="sectionHead"><div><label>GRAPH ANALYSIS</label><h2>Pattern analysis</h2><p>Find recurring links and shared incident clusters in the recorded network.</p></div><span class="model">● EXPLAINABLE SIGNALS</span></div>
+  <div class="sectionHead">
+    <div>
+      <div class="badgeGroup">
+        <label>GRAPH INTELLIGENCE</label>
+        <span class="liveBadge">HEURISTIC ANALYSIS</span>
+      </div>
+      <h2>Pattern & Cluster Analysis</h2>
+      <p>Identify recurrent operational links, syndicate bridges, and shared incident clusters across the network.</p>
+    </div>
+    <span class="model">SIGNAL ENGINE ACTIVE</span>
+  </div>
   <div class="analysisStats" id="analysisStats"></div>
+  
+  <div class="topologyInsights" id="topologyInsights">
+    <div class="card topologyCard">
+      <div class="topologyHead">
+        <div>
+          <label>NETWORK ANCHORS</label>
+          <h3>Highest-Degree Entities</h3>
+        </div>
+        <small class="textMuted">Ranked by direct association count</small>
+      </div>
+      <div class="hubsList" id="hubsList"></div>
+    </div>
+    <div class="card topologyCard">
+      <div class="topologyHead">
+        <div>
+          <label>TOPOLOGY COMPOSITION</label>
+          <h3>Entity & Link Distribution</h3>
+        </div>
+        <small class="textMuted">Network classification breakdown</small>
+      </div>
+      <div class="distributionBreakdown" id="distributionBreakdown"></div>
+    </div>
+  </div>
+
+  <div class="patternSectionTitle">
+    <label>IDENTIFIED SUBGRAPHS</label>
+    <h3>Recurring Clusters & Shared Identifiers</h3>
+  </div>
   <div class="patternResults" id="patternResults"></div>
 </section>
 
 <section id="network" class="page active">
-<div class="sectionHead"><div><label>RELATIONSHIP GRAPH</label><h2>Network analysis</h2><p>Explore connections across people, identifiers, and incident records.</p></div><div class="sectionActions"><a class="download" href="/api/network/csv/nodes">↓ Nodes CSV</a><a class="download" href="/api/network/csv/relationships">↓ Links CSV</a><button class="primary" id="addEntity">＋ Add record</button><button id="addRelationship">＋ Match identifier</button></div></div>
-<div class="graphTools"><input id="graphSearch" type="search" placeholder="Find a person, case, phone, or vehicle"><button id="focusToggle" aria-pressed="true">Show all records</button><span id="graphCount"></span></div>
-<div class="network"><div class="graph" id="graph"></div><div class="card inspector"><label>SELECTED RECORD</label><div class="avatar" id="avatar">E</div><h3 id="entityName">Select a node</h3><small id="entityType">NETWORK RECORD</small><p class="linkedCount">Linked records <b id="links">0</b></p><div class="entityEvidence" id="entityEvidence"></div><button class="primary full" id="trace">Trace connections →</button></div></div>
+<div class="sectionHead">
+  <div>
+    <div class="badgeGroup">
+      <label>RELATIONSHIP INTELLIGENCE</label>
+      <span class="liveBadge">WEBGL ACCELERATED</span>
+    </div>
+    <h2>Network Analysis</h2>
+    <p>Link analysis across persons of interest, criminal syndicates, incidents, and matched identifiers.</p>
+  </div>
+  <div class="sectionActions">
+    <div class="exportWrapper">
+      <button class="exportBtn" id="exportBtn" title="Export graph data">Export</button>
+      <div class="exportMenu" id="exportMenu">
+        <a class="download" href="/api/network/csv/nodes">Nodes CSV</a>
+        <a class="download" href="/api/network/csv/relationships">Relationships CSV</a>
+        <button type="button" id="exportJsonBtn">Network JSON</button>
+      </div>
+    </div>
+    <button class="primary" id="addEntity">+ Add Record</button>
+    <button id="addRelationship">+ Match Identifier</button>
+  </div>
+</div>
+
+<div class="graphControlBar">
+  <div class="searchWrapper">
+    <input id="graphSearch" type="search" placeholder="Search by name, FIR case, phone, vehicle..." autocomplete="off">
+    <button id="clearSearch" class="clearSearchBtn" aria-label="Clear search" style="display:none">&times;</button>
+    <div class="searchDropdown" id="searchDropdown" style="display:none"></div>
+  </div>
+
+  <div class="filterChips" id="filterChips">
+    <button class="filterChip active" data-type="all"><span>All Records</span><b id="chipAllCount">0</b></button>
+    <button class="filterChip" data-type="person"><i class="dot personDot"></i><span>Persons</span><b id="chipPersonCount">0</b></button>
+    <button class="filterChip" data-type="incident"><i class="dot incidentDot"></i><span>Incidents</span><b id="chipIncidentCount">0</b></button>
+    <button class="filterChip" data-type="identifier"><i class="dot identifierDot"></i><span>Identifiers</span><b id="chipIdentifierCount">0</b></button>
+    <button class="filterChip" data-type="hubs"><i class="dot hubDot"></i><span>Core Hubs</span><b id="chipHubCount">0</b></button>
+  </div>
+
+  <div class="graphViewToggles">
+    <div class="segmentedToggle">
+      <button id="modeFocus" class="active" title="Isolate target entity and direct associations">Target Focus</button>
+      <button id="modeAll" title="View complete network topology">Global Network</button>
+    </div>
+    <button id="toggleInspector" class="iconBtn" title="Toggle Sidebar">Sidebar</button>
+    <button id="graphFullscreen" class="iconBtn" title="Toggle Fullscreen">Fullscreen</button>
+  </div>
+</div>
+
+<div class="network" id="networkContainer">
+  <div class="graphWrapper">
+    <div class="graph" id="graph"></div>
+
+    <div class="graphHudTop">
+      <div class="investigationTrail" id="investigationTrail">
+        <span class="trailLabel">NAVIGATION TRAIL</span>
+        <div class="trailChips" id="trailChips"></div>
+      </div>
+    </div>
+
+    <div class="graphHudTelemetry" id="graphTelemetry">
+      <div class="telemetryItem">
+        <span>ENTITIES</span>
+        <strong id="hudEntitiesCount">0</strong>
+      </div>
+      <div class="telemetryDivider"></div>
+      <div class="telemetryItem">
+        <span>RELATIONSHIPS</span>
+        <strong id="hudEdgesCount">0</strong>
+      </div>
+      <div class="telemetryDivider"></div>
+      <div class="telemetryItem">
+        <span>VIEW MODE</span>
+        <strong id="hudModeVal" class="telemetryHighlight">TARGET FOCUS</strong>
+      </div>
+      <div class="telemetryDivider"></div>
+      <div class="telemetryItem">
+        <span>DENSITY</span>
+        <strong id="hudDensityVal">0.00</strong>
+      </div>
+    </div>
+
+    <div class="graphFloatNav">
+      <button id="graphZoomIn" class="floatNavBtn" title="Zoom In" aria-label="Zoom In">+</button>
+      <button id="graphZoomOut" class="floatNavBtn" title="Zoom Out" aria-label="Zoom Out">&minus;</button>
+      <div class="navDivider"></div>
+      <button id="graphFit" class="floatNavBtn" title="Fit to Viewport" aria-label="Fit Viewport">Fit</button>
+      <button id="graphCenterSelected" class="floatNavBtn" title="Center Target" aria-label="Center Target">Center</button>
+      <button id="graphLayout" class="floatNavBtn" title="Recalculate Spacing" aria-label="Re-layout">Align</button>
+    </div>
+
+    <div class="graphTooltip" id="graphTooltip" style="display:none">
+      <div class="tooltipHeader">
+        <span class="tooltipTypeBadge" id="tooltipBadge">PERSON</span>
+        <span class="tooltipLinks" id="tooltipLinks">0 associations</span>
+      </div>
+      <h4 class="tooltipTitle" id="tooltipTitle">Entity Name</h4>
+      <div class="tooltipMeta" id="tooltipMeta"></div>
+      <div class="tooltipHint">Click node to inspect profile</div>
+    </div>
+
+    <div class="graphLegendFooter">
+      <div class="legendItem"><i class="legendPerson"></i><span>Persons (Square · Role Coded)</span></div>
+      <div class="legendItem"><i class="legendIncident"></i><span>Incidents (Circle)</span></div>
+      <div class="legendItem"><i class="legendIdentifier"></i><span>Identifiers (Circle)</span></div>
+      <div class="legendItem"><i class="legendHub"></i><span>Core Hubs (Degree &ge; 3)</span></div>
+      <span class="legendHint">Drag nodes to position &middot; Scroll to zoom &middot; Click to inspect profile</span>
+    </div>
+  </div>
+
+  <div class="card inspector" id="inspectorCard">
+    <div class="inspectorHeader">
+      <div class="inspectorTopBar">
+        <span class="dossierLabel">ENTITY PROFILE</span>
+        <button class="dossierIdBtn" id="dossierId" title="Copy entity identifier">ID: --</button>
+      </div>
+      <div class="avatarWrapper">
+        <div class="avatar" id="avatar">E</div>
+      </div>
+      <h3 id="entityName">Select a node</h3>
+      <div class="typePillRow">
+        <span class="entityTypeTag" id="entityType">NETWORK RECORD</span>
+        <span class="entityProfessionTag" id="entityProfession" style="display:none"></span>
+        <span class="entityStatusTag" id="entityStatusTag">VERIFIED</span>
+      </div>
+    </div>
+
+    <div class="centralityBlock">
+      <div class="centralityHeader">
+        <span>CENTRALITY INDEX</span>
+        <b id="centralityScore">0%</b>
+      </div>
+      <div class="centralityBar">
+        <div class="centralityFill" id="centralityFill" style="width: 0%"></div>
+      </div>
+      <div class="centralityFoot">
+        <small id="centralityRank">PERIPHERAL ENTITY</small>
+        <small><b id="links">0</b> ASSOCIATIONS</small>
+      </div>
+    </div>
+
+    <div class="dossierMetadata" id="dossierMetadata"></div>
+
+    <div class="inspectorSection">
+      <div class="sectionTitleRow">
+        <label>DIRECT ASSOCIATIONS</label>
+        <span class="connectedBadge" id="connectedCountBadge">0</span>
+      </div>
+      <div class="entityEvidence" id="entityEvidence"></div>
+    </div>
+
+    <div class="inspectorActions">
+      <button class="primary full" id="trace">Isolate Direct Links</button>
+      <button class="secondary full" id="btnMatchFromInspector">+ Match Identifier</button>
+    </div>
+  </div>
+</div>
 </section>
 
 <section id="cases" class="page">
@@ -39,11 +229,6 @@
 <section id="ledger" class="page">
 <div class="sectionHead"><div><label>INTEGRITY & AUDITABILITY</label><h2>Evidence ledger</h2><p>Review the SHA-256 chain that records evidence events and exposes unexpected changes.</p></div><button class="primary" id="verify">✓ Verify chain</button></div>
 <div class="chain" id="chain"></div><div class="blocks" id="blocks"></div>
-</section>
-
-<section id="sources" class="page">
-<div class="sectionHead"><div><label>PROVENANCE</label><h2>Data sources</h2><p>Review the public references used for geographic and domain context in the workspace.</p></div></div>
-<div class="sourceGrid" id="sourceCards"></div>
 </section>
 
 <div class="toast" id="toast"></div>
@@ -58,6 +243,7 @@
       <div class="formField formWide"><label for="caseDescription">OBSERVATION</label><textarea id="caseDescription" name="description" maxlength="2000" required rows="3" placeholder="Record verifiable facts, not conclusions"></textarea></div>
       <div class="formField"><label for="caseNumber">CASE NUMBER</label><input id="caseNumber" name="caseNumber" maxlength="80" placeholder="FIR or case number"></div>
       <div class="formField"><label for="casePhone">PHONE NUMBER</label><input id="casePhone" name="phoneNumber" inputmode="tel" maxlength="24" placeholder="Phone number"></div>
+      <div class="formField"><label for="casePhoneId">PHONE ID</label><input id="casePhoneId" name="phoneId" maxlength="24" placeholder="e.g. PH001"></div>
       <div class="formField"><label for="caseVehicle">VEHICLE NUMBER</label><input id="caseVehicle" name="vehicleNumber" maxlength="24" placeholder="Registration number"></div>
     </div>
     <div class="formActions"><button class="dialogCancel" type="button" id="cancelCase">Cancel</button><button class="primary" type="submit" id="saveCase">Save incident</button></div>
@@ -68,7 +254,7 @@
     <div class="caseDialogHead"><div><label>NETWORK MATCHING</label><h2 id="relationshipDialogTitle">Match identifier</h2></div><button class="dialogClose" type="button" id="closeRelationshipDialog" aria-label="Close">×</button></div>
     <div class="formGrid">
       <div class="formField formWide"><label for="identifierRecord">RECORD</label><select id="identifierRecord" name="recordId" required></select></div>
-      <div class="formField"><label for="identifierType">IDENTIFIER TYPE</label><select id="identifierType" name="identifierType" required><option value="phone">Phone number</option><option value="case">Case number</option><option value="vehicle">Vehicle number</option></select></div>
+      <div class="formField"><label for="identifierType">IDENTIFIER TYPE</label><select id="identifierType" name="identifierType" required><option value="phone">Phone number</option><option value="phone_ref">Phone ID</option><option value="case">Case number</option><option value="vehicle">Vehicle number</option></select></div>
       <div class="formField"><label for="identifierValue">IDENTIFIER</label><input id="identifierValue" name="identifierValue" required maxlength="80" placeholder="Enter exact identifier"></div>
     </div>
     <div class="formActions"><button class="dialogCancel" type="button" id="cancelRelationship">Cancel</button><button class="primary" type="submit" id="saveRelationship">Find matches</button></div>
@@ -81,11 +267,15 @@
       <div class="formField"><label for="entityNameInput">RECORD NAME</label><input id="entityNameInput" name="name" maxlength="120" required placeholder="Entity or reference label"></div>
       <div class="formField"><label for="entityTypeInput">RECORD TYPE</label><select id="entityTypeInput" name="type" required><option value="person">Person</option><option value="organization">Organization</option><option value="vehicle">Vehicle</option><option value="phone">Phone</option><option value="location">Location</option><option value="account">Account</option><option value="device">Device</option></select></div>
       <div class="formField"><label for="entityPhoneInput">PHONE NUMBER</label><input id="entityPhoneInput" name="phoneNumber" inputmode="tel" maxlength="24" placeholder="Phone number"></div>
+      <div class="formField"><label for="entityPhoneIdInput">PHONE ID</label><input id="entityPhoneIdInput" name="phoneId" maxlength="24" placeholder="e.g. PH001"></div>
       <div class="formField"><label for="entityCaseInput">CASE NUMBER</label><input id="entityCaseInput" name="caseNumber" maxlength="80" placeholder="FIR or case number"></div>
       <div class="formField"><label for="entityVehicleInput">VEHICLE NUMBER</label><input id="entityVehicleInput" name="vehicleNumber" maxlength="24" placeholder="Registration number"></div>
     </div>
     <div class="formActions"><button class="dialogCancel" type="button" id="cancelEntity">Cancel</button><button class="primary" type="submit" id="saveEntity">Save record</button></div>
   </form>
 </dialog>
-<script src="app.js?v=identifier-graph-20260926"></script>
+<script type="importmap">
+{"imports":{"graphology":"https://esm.sh/graphology@0.26.0","sigma":"https://esm.sh/sigma@3.0.3?external=graphology","sigma/rendering":"https://esm.sh/sigma@3.0.3/rendering?external=graphology","graphology-layout-forceatlas2":"https://esm.sh/graphology-layout-forceatlas2@0.10.1?external=graphology"}}
+</script>
+<script type="module" src="app.js?v=visible-network-20260927"></script>
 </body></html>
