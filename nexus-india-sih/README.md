@@ -9,16 +9,15 @@ It does not connect to police databases. Public statistics come from official In
 - Express REST API backed by PostgreSQL
 - Modern responsive dashboard
 - India NCRB/MHA aggregate statistics
-- Sigma WebGL graph renderer with pan, zoom, focus, and full-network modes
-- ForceAtlas2 worker layout using Barnes–Hut repulsion
+- Network graph with entity and incident records
 - Phone, case, and vehicle identifier intake
-- Automatic exact-identifier matching through shared hub nodes
+- Automatic exact-identifier matching
 - Focused neighborhood graph with search and full-network view
 - Identifier-match node and relationship CSV exports
 - Incident record workspace
 - SHA-256 chained evidence ledger ("blockchain-inspired" audit layer)
 - Source/provenance page
-- No frontend framework required
+- No frontend framework required, so it stays fast
 
 This prototype has no authentication, authorization, or production-grade protection for sensitive personal information. Use synthetic or otherwise non-sensitive data only until access controls, encryption, retention policies, and legal authorization are implemented.
 
@@ -35,13 +34,6 @@ The running graph is served from PostgreSQL. Download node and relationship
 records, including relationship types and masked identifier hints, from
 `/api/network/csv/nodes` and `/api/network/csv/relationships`. Neo4j storage is
 not wired into this prototype yet.
-
-The browser loads pinned Sigma.js and Graphology ESM packages from `esm.sh`, so
-the current UI needs network access to that CDN. Isolated deployments should
-vendor or bundle these packages locally. The renderer and identifier hubs avoid
-the previous quadratic layout/edge expansion, but `/api/network` still returns
-the full graph; benchmark and add paginated/subgraph API queries before loading
-hundreds of thousands of production records.
 
 ## Authentic sources used
 1. Open Government Data Platform India / NCRB Crime in India 2023:
@@ -61,7 +53,6 @@ hundreds of thousands of production records.
 
 ## Next SIH-level upgrades
 - Neo4j for native graph queries
-- Paginated graph/neighborhood APIs and bulk data ingestion
 - An evaluated graph-analysis or model service
 - Role-based access control + audit logs
 - Authorized, provenance-preserving data ingestion where legally and technically available
